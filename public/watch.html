@@ -1,0 +1,16 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Watch Video</title>
+</head>
+<body>
+    <video id="videoPlayer" controls style="max-width: 100%"></video>
+    <div id="status"></div>
+
+    <script>
+        const videoId = window.location.pathname.split('/')[2];
+        const video = document.getElementById('videoPlayer');
+        video.src = `/video/${videoId}`;
+    </script>
+</body>
+</html> 

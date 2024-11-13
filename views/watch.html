@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Watch Video</title>
+</head>
+<body>
+    <video id="videoPlayer" controls></video>
+    <div id="status"></div>
+
+    <script>
+        const videoId = window.location.pathname.split('/')[2];
+        const video = document.getElementById('videoPlayer');
+        const status = document.getElementById('status');
+        let peerConnection;
+        let dataChannel;
+
+        // WebRTC configuration
+        const configuration = {
+            iceServers: [
+                { urls: 'stun:stun.l.google.com:19302' }
+            ]
+        };
+
+        // Connect to signaling server
+        const ws = new WebSocket(`ws://${window.location.host}/ws/${videoId}`);
+
+        ws.onmessage = async (event) => {
+            const data = JSON.parse(event.data);
+            
+            if (data.type === 'offer') {
+                status.textContent = 'Received offer. Creating answer...';
+                await handleOffer(data);
+            } else if (data.type === 'answer') {
+                status.textContent = 'Received answer';
+                await peerConnection.setRemoteDescription(data);
+            } else if (data.type === 'candidate') {
+                await peerConnection.addIceCandidate(data.candidate);
+            }
+        };
+
+        async function initializePeerConnection() {
+            peerConnection = new RTCPeerConnection(configuration);
+            
+            // Set up data channel
+            dataChannel = peerConnection.createDataChannel('video');
+            dataChannel.onmessage = handleDataChannelMessage;
+
+            // Handle ICE candidates
+            peerConnection.onicecandidate = event => {
+                if (event.candidate) {
+                    ws.send(JSON.stringify({
+                        type: 'candidate',
+                        candidate: event.candidate
+                    }));
+                }
+            };
+
+            // Create and send offer
+            const offer = await peerConnection.createOffer();
+            await peerConnection.setLocalDescription(offer);
+            ws.send(JSON.stringify(offer));
+        }
+
+        async function handleOffer(offer) {
+            peerConnection = new RTCPeerConnection(configuration);
+            
+            peerConnection.ondatachannel = event => {
+                dataChannel = event.channel;
+                dataChannel.onmessage = handleDataChannelMessage;
+            };
+
+            await peerConnection.setRemoteDescription(offer);
+            const answer = await peerConnection.createAnswer();
+            await peerConnection.setLocalDescription(answer);
+            ws.send(JSON.stringify(answer));
+        }
+
+        function handleDataChannelMessage(event) {
+            // Handle incoming video data
+            const videoChunk = event.data;
+            // Add to MediaSource or handle appropriately
+            // This depends on how you're implementing the video streaming
+        }
+
+        // Start connection when page loads
+        window.onload = initializePeerConnection;
+    </script>
+</body>
+</html> 
